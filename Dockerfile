@@ -31,6 +31,6 @@ COPY . .
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV CHROME_BIN=/usr/bin/chromium
 
-EXPOSE 3112
+EXPOSE 5002
 
 CMD ["node", "bot.js"]
