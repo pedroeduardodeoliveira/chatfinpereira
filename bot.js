@@ -19,8 +19,14 @@ console.log("Iniciando bot WhatsApp + Google Sheets...");
 // CONFIGURAÇÕES
 // =========================
 
-const SPREADSHEET_ID = "1pm0xKftMIWeE4l88jLfC-vk3qk4YIf-s0rIU3xAjl-0";
-const SHEET_NAME = "Página1";
+const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
+const SHEET_NAME = process.env.GOOGLE_SHEET_TAB;
+
+if (!SPREADSHEET_ID || !SHEET_NAME) {
+  throw new Error(
+    "❌ Variáveis de ambiente GOOGLE_SHEET_ID ou GOOGLE_SHEET_TAB não definidas"
+  );
+}
 
 let messageDelayMs = 3000;
 let isWhatsAppReady = false;
@@ -40,8 +46,15 @@ let messageLog = [];
 // =========================
 
 async function getGoogleSheetsClient() {
+  if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+    throw new Error("❌ Variáveis de ambiente do Google não definidas!");
+  }
+
   const auth = new google.auth.GoogleAuth({
-    keyFile: "credentials.json",
+    credentials: {
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    },
     scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   });
 
@@ -87,11 +100,9 @@ function normalizePhone(raw) {
   if (digits.startsWith("55") && digits.length >= 12 && digits.length <= 13)
     return digits;
 
-  if (digits.length === 10 || digits.length === 11)
-    return "55" + digits;
+  if (digits.length === 10 || digits.length === 11) return "55" + digits;
 
-  if (digits.length >= 12 && digits.length <= 15)
-    return digits;
+  if (digits.length >= 12 && digits.length <= 15) return digits;
 
   return null;
 }
@@ -288,4 +299,3 @@ const PORT = process.env.PORT || 5002;
 app.listen(PORT, () => {
   console.log(`🌐 Rodando em http://localhost:${PORT}`);
 });
-
