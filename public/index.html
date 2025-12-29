@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bot WhatsApp</title>
+
+    <!-- FAVICON -->
+    <link rel="icon" type="image/png" href="favicon.png" />
+
+    <!-- QRCodeJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+
+        background-image: url("background.png");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+
+        font-family: Arial, sans-serif;
+        max-width: 900px;
+        margin: 20px auto;
+        padding: 10px;
+        backdrop-filter: blur(3px);
+        color: #ffffff;
+      }
+
+      h1 {
+        text-align: center;
+        margin-bottom: 4px;
+      }
+
+      .subtitle {
+        text-align: center;
+        margin-top: 0;
+        margin-bottom: 16px;
+        font-size: 0.95rem;
+        opacity: 0.9;
+      }
+
+      .top-status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background-color: rgba(0, 0, 0, 0.6);
+        font-size: 0.9rem;
+      }
+
+      .blink-emoji {
+        font-size: 1.3rem;
+        animation: pulse 1s infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          transform: scale(1);
+          filter: drop-shadow(0 0 0px rgba(34, 197, 94, 0));
+        }
+        50% {
+          transform: scale(1);
+          filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.9));
+        }
+        100% {
+          transform: scale(1);
+          filter: drop-shadow(0 0 0px rgba(34, 197, 94, 0));
+        }
+      }
+
+      .daily-counter {
+        font-size: 0.9rem;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background-color: rgba(0, 0, 0, 0.5);
+      }
+
+      .last-run {
+        font-size: 0.8rem;
+        opacity: 0.9;
+        margin-top: 6px;
+      }
+
+      .card-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+      }
+
+      .card {
+        background-color: rgba(51, 51, 51, 0.7);
+        color: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        text-align: left;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .card h2 {
+        margin-top: 0;
+        margin-bottom: 8px;
+      }
+
+      .card p {
+        font-size: 0.9rem;
+      }
+
+      .log-card {
+        margin-top: 20px;
+        background-color: rgba(51, 51, 51, 0.7);
+        color: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        text-align: left;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .log-card h2 {
+        margin-top: 0;
+        margin-bottom: 8px;
+        font-size: 1rem;
+      }
+
+      #log {
+        max-height: 260px;
+        overflow-y: auto;
+        font-size: 0.8rem;
+        background: rgba(0, 0, 0, 0.35);
+        padding: 8px;
+        border-radius: 6px;
+        white-space: pre-wrap;
+      }
+
+      label {
+        display: block;
+        margin-top: 10px;
+        font-size: 0.9rem;
+      }
+
+      input[type="time"],
+      input[type="number"],
+      input[type="text"],
+      textarea {
+        padding: 6px 8px;
+        margin-top: 5px;
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background-color: rgba(0, 0, 0, 0.25);
+        color: #f9fafb;
+        font-size: 0.9rem;
+      }
+
+      input::placeholder,
+      textarea::placeholder {
+        color: rgba(249, 250, 251, 0.7);
+      }
+
+      textarea {
+        min-height: 80px;
+        resize: vertical;
+      }
+
+      button {
+        padding: 8px 14px;
+        margin-top: 10px;
+        cursor: pointer;
+        border-radius: 999px;
+        border: none;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+        font-weight: 600;
+        font-size: 0.9rem;
+        box-shadow: 0 4px 10px rgba(34, 197, 94, 0.4);
+        transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.1s;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 14px rgba(34, 197, 94, 0.55);
+      }
+
+      button:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 6px rgba(34, 197, 94, 0.4);
+        opacity: 0.9;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+        box-shadow: none;
+      }
+
+      .btn-danger {
+        background: linear-gradient(135deg, #ef4444, #b91c1c);
+        box-shadow: 0 4px 10px rgba(248, 113, 113, 0.45);
+      }
+
+      .btn-danger:hover {
+        box-shadow: 0 6px 14px rgba(248, 113, 113, 0.6);
+      }
+
+      .status {
+        margin-top: 5px;
+        font-size: 0.85em;
+      }
+
+      /* ===================== */
+      /* MODAL DO QR CODE */
+      /* ===================== */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.65);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        backdrop-filter: blur(4px);
+      }
+
+      .modal-box {
+        background: rgba(40, 40, 40, 0.9);
+        padding: 25px;
+        border-radius: 14px;
+        width: 340px;
+        text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        box-shadow: 0 0 18px rgba(0, 0, 0, 0.5);
+        position: relative;
+      }
+
+      .modal-close {
+        position: absolute;
+        right: 12px;
+        top: 10px;
+        font-size: 22px;
+        cursor: pointer;
+        color: #fff;
+      }
+
+      #qr-container {
+        margin-top: 10px;
+        padding: 14px;
+        background: #fff;
+        border-radius: 10px;
+        display: inline-block;
+        min-width: 300px;
+        min-height: 300px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Bot Envios Automáticos WhatsApp</h1>
+
+    <p class="subtitle">
+      Controle de envios diários, testes e status da conexão.
+    </p>
+
+    <!-- BOTÃO DE QR CODE -->
+    <div style="text-align:center;">
+      <button id="open-qr">Mostrar QR Code</button>
+    </div>
+
+
+
+    <div class="top-status-row">
+      <div class="status-pill">
+        <span id="status-emoji" class="blink-emoji">⚠️</span>
+        <span id="wa-status">Carregando...</span>
+      </div>
+
+      <div class="daily-counter">
+        📊 Mensagens hoje: <span id="contador-mensagens">0</span>
+      </div>
+    </div>
+
+    <div class="last-run" id="last-run-info"></div>
+
+    <div class="card-container">
+      <div class="card">
+        <h2>Envio diário</h2>
+        <label>
+          <input type="checkbox" id="daily-enabled" />
+          Ativar envio diário
+        </label>
+
+        <label style="margin-top: 10px;">
+          Horário diário (HH:MM):
+          <input type="time" id="time-input" value="18:00" />
+        </label>
+        <button id="time-save">Salvar horário</button>
+        <span id="time-status" class="status"></span>
+      </div>
+
+      <div class="card">
+        <h2>Envio manual (planilha inteira)</h2>
+        <p>
+          Clique abaixo para disparar o envio agora, usando os dados atuais da
+          planilha:
+        </p>
+        <button id="send-now" class="btn-danger">Enviar agora (teste)</button>
+        <span id="send-status" class="status"></span>
+      </div>
+
+      <div class="card">
+        <h2>Envio de teste para 1 número</h2>
+        <label>
+          Telefone:
+          <input
+            type="text"
+            id="test-phone"
+            placeholder="Ex: 64912345678"
+          />
+        </label>
+        <label>
+          Mensagem:
+          <textarea id="test-text">Mensagem de teste do bot.</textarea>
+        </label>
+        <button id="test-send">Enviar teste</button>
+        <span id="test-status" class="status"></span>
+      </div>
+    </div>
+
+    <div class="log-card">
+      <h2>Log de envios</h2>
+      <pre id="log"></pre>
+    </div>
+
+    <!-- MODAL DO QR CODE -->
+    <div class="modal-overlay" id="qr-modal">
+      <div class="modal-box">
+        <span class="modal-close" id="qr-close">✖</span>
+        <h2 style="color:white; margin-top:0;">QR Code do WhatsApp</h2>
+        <p style="color:#eee;">Escaneie para conectar seu bot.</p>
+
+        <div id="qr-container">Carregando...</div>
+      </div>
+    </div>
+
+    <script>
+      async function loadStatus() {
+        try {
+          const res = await fetch("/api/status");
+          const data = await res.json();
+
+          const statusSpan = document.getElementById("wa-status");
+          const emojiEl = document.getElementById("status-emoji");
+          const contadorEl = document.getElementById("contador-mensagens");
+          const lastEl = document.getElementById("last-run-info");
+
+          if (data.whatsappReady) {
+            statusSpan.textContent = "Conectado ao WhatsApp";
+            statusSpan.style.color = "#4ade80";
+            emojiEl.textContent = "🟢";
+          } else {
+            statusSpan.textContent = "Desconectado / aguardando QR";
+            statusSpan.style.color = "#facc15";
+            emojiEl.textContent = "⚠️";
+          }
+
+          if (contadorEl && typeof data.todayCount === "number") {
+            contadorEl.textContent = data.todayCount;
+          }
+
+          if (lastEl) {
+            if (data.lastRun && data.lastRun.lastRunAt) {
+              const d = new Date(data.lastRun.lastRunAt);
+              const dtStr = d.toLocaleString("pt-BR");
+
+              lastEl.textContent =
+                "Último envio: " +
+                dtStr +
+                ` | Enviadas: ${data.lastRun.totalSent}, sem WhatsApp: ${data.lastRun.totalNoWhatsapp}, erros: ${data.lastRun.totalErrors}`;
+            } else {
+              lastEl.textContent = "Ainda não houve envio registrado.";
+            }
+          }
+        } catch (e) {
+          console.error("Erro ao carregar status:", e);
+          const statusSpan = document.getElementById("wa-status");
+          const emojiEl = document.getElementById("status-emoji");
+
+          statusSpan.textContent = "Erro ao obter status";
+          statusSpan.style.color = "#f97373";
+          emojiEl.textContent = "❌";
+        }
+      }
+
+      async function loadConfig() {
+        try {
+          const res = await fetch("/api/config");
+          const data = await res.json();
+
+          if (data.time) {
+            document.getElementById("time-input").value = data.time;
+          }
+
+          if (typeof data.dailyEnabled === "boolean") {
+            document.getElementById("daily-enabled").checked =
+              data.dailyEnabled;
+          }
+        } catch (e) {
+          console.error("Erro ao carregar config:", e);
+        }
+      }
+
+      async function loadLog() {
+        try {
+          const res = await fetch("/api/log");
+          const data = await res.json();
+
+          const logEl = document.getElementById("log");
+          if (!logEl) return;
+
+          const lines = (data.log || []).map((entry) => {
+            const d = new Date(entry.timestamp);
+            const time = d.toLocaleTimeString("pt-BR");
+            const base = `[${time}] ${entry.phone} | ${entry.info}`;
+
+            if (entry.status === "sent") {
+              return `<span style="color:#00ff00;">${base}</span>`;
+            } else if (entry.status === "no-whatsapp") {
+              return `<span style="color:#ffdd55;">${base} (sem WhatsApp)</span>`;
+            } else {
+              return `<span style="color:#ff4c4c;">${base} (erro)</span>`;
+            }
+          });
+
+          logEl.innerHTML = lines.join("\n");
+          logEl.scrollTop = logEl.scrollHeight;
+
+          if (typeof data.todayCount === "number") {
+            const contadorEl = document.getElementById("contador-mensagens");
+            if (contadorEl) contadorEl.textContent = data.todayCount;
+          }
+        } catch (e) {
+          console.error("Erro ao carregar log:", e);
+        }
+      }
+
+      // Salvar horário
+      document
+        .getElementById("time-save")
+        .addEventListener("click", async () => {
+          const time = document.getElementById("time-input").value;
+          const statusEl = document.getElementById("time-status");
+
+          try {
+            const res = await fetch("/api/time", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ time }),
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+              statusEl.textContent = `Horário salvo: ${data.time}`;
+              statusEl.style.color = "lightgreen";
+            } else {
+              statusEl.textContent = data.error;
+              statusEl.style.color = "salmon";
+            }
+          } catch (e) {
+            statusEl.textContent = "Erro ao salvar horário";
+            statusEl.style.color = "salmon";
+          }
+        });
+
+      // Toggle envio diário
+      document
+        .getElementById("daily-enabled")
+        .addEventListener("change", async (ev) => {
+          const checked = ev.target.checked;
+          await fetch("/api/daily", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled: checked }),
+          });
+        });
+
+      // Envio manual
+      document
+        .getElementById("send-now")
+        .addEventListener("click", async (e) => {
+          const btn = e.target;
+          const statusEl = document.getElementById("send-status");
+          statusEl.textContent = "";
+          btn.disabled = true;
+          btn.textContent = "Enviando...";
+
+          try {
+            const res = await fetch("/api/send-now", { method: "POST" });
+
+            if (res.ok) {
+              statusEl.textContent = "Envio concluído.";
+              statusEl.style.color = "lightgreen";
+              loadStatus();
+              loadLog();
+            } else {
+              statusEl.textContent = "Erro ao enviar.";
+              statusEl.style.color = "salmon";
+            }
+          } catch (e) {
+            statusEl.textContent = "Erro ao enviar";
+            statusEl.style.color = "salmon";
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "Enviar agora (teste)";
+          }
+        });
+
+      // Envio teste
+      document
+        .getElementById("test-send")
+        .addEventListener("click", async () => {
+          const phone = document.getElementById("test-phone").value.trim();
+          const text = document.getElementById("test-text").value.trim();
+          const statusEl = document.getElementById("test-status");
+
+          if (!phone || !text) {
+            statusEl.textContent = "Informe telefone e mensagem.";
+            statusEl.style.color = "salmon";
+            return;
+          }
+
+          statusEl.textContent = "Enviando teste...";
+          statusEl.style.color = "white";
+
+          try {
+            const res = await fetch("/api/send-test", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ phone, text }),
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+              statusEl.textContent = "Teste enviado para " + data.result.to;
+              statusEl.style.color = "lightgreen";
+              loadLog();
+            } else {
+              statusEl.textContent = data.error;
+              statusEl.style.color = "salmon";
+            }
+          } catch (e) {
+            statusEl.textContent = "Erro no envio de teste";
+            statusEl.style.color = "salmon";
+          }
+        });
+
+      // Atualizações periódicas
+      setInterval(() => {
+        loadStatus();
+        loadLog();
+      }, 15000);
+
+      (function init() {
+        loadStatus();
+        loadLog();
+        loadConfig();
+      })();
+
+
+      /* ============================ */
+      /*      MODAL DO QR CODE       */
+      /* ============================ */
+      let qrInterval = null;
+      let qrGenerator = null;
+
+      async function loadQRModal() {
+        try {
+          const res = await fetch("/api/qr");
+          const data = await res.json();
+
+          const div = document.getElementById("qr-container");
+
+          if (!data.qr) {
+            div.innerHTML = "Aguardando QR...";
+            return;
+          }
+
+          div.innerHTML = "";
+
+          qrGenerator = new QRCode(div, {
+            text: data.qr,
+            width: 300,
+            height: 300,
+            correctLevel: QRCode.CorrectLevel.H,
+          });
+        } catch (err) {
+          document.getElementById("qr-container").innerHTML =
+            "Erro ao carregar QR.";
+        }
+      }
+
+      document.getElementById("open-qr").addEventListener("click", () => {
+        const modal = document.getElementById("qr-modal");
+        modal.style.display = "flex";
+
+        loadQRModal();
+        qrInterval = setInterval(loadQRModal, 1000);
+      });
+
+      document.getElementById("qr-close").addEventListener("click", () => {
+        const modal = document.getElementById("qr-modal");
+        modal.style.display = "none";
+
+        if (qrInterval) clearInterval(qrInterval);
+      });
+    </script>
+  </body>
+</html>
