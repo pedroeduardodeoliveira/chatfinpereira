@@ -1,0 +1,19 @@
+{
+  "name": "whats-bot-planilha",
+  "version": "1.0.0",
+  "main": "bot.js",
+  "type": "module",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "express": "^4.19.0",
+    "googleapis": "^133.0.0",
+    "node-schedule": "^2.1.1",
+    "puppeteer": "^20.0.0",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.26.0"
+  }
+}

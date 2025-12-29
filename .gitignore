@@ -1,0 +1,11 @@
+# Arquivos de dependências
+node_modules/
+
+# Arquivo de credenciais do Google
+credentials.json
+
+# Pasta de sessão do WhatsApp
+.wwebjs_auth/
+
+# Arquivos de ambiente (se você usar)
+.env
