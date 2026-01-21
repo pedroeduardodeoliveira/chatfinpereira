@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
   libgtk-3-0 \
   libdrm2 \
   ca-certificates \
+  git \
   --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
