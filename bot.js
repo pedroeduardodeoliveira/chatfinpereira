@@ -399,7 +399,7 @@ app.post("/api/send-test", async (req, res) => {
 // SERVIDOR
 // =========================
 
-const PORT = process.env.PORT || 3112;
+const PORT = process.env.PORT || 5002;
 
 app.listen(PORT, () => {
   console.log(`🌐 Interface web disponível em: http://localhost:${PORT}`);

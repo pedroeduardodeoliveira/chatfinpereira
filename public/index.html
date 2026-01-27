@@ -306,36 +306,18 @@
   <div class="last-run" id="last-run-info"></div>
 
   <div class="card-container">
-    <div class="card">
-      <h2>Envio diário</h2>
-      <label>
-        <input type="checkbox" id="daily-enabled" />
-        Ativar envio diário
-      </label>
 
-      <label style="margin-top: 10px;">
-        Horário Env 1 (Flag "1"):
-        <input type="time" id="time-input" value="18:00" />
-      </label>
-
-      <label style="margin-top: 10px;">
-        Horário Env 2 (Flag "2"):
-        <input type="time" id="time-input-2" value="12:00" />
-      </label>
-      <button id="time-save">Salvar horário</button>
-      <span id="time-status" class="status"></span>
-    </div>
 
     <div class="card">
       <h2>Envio manual (planilha inteira)</h2>
       <p>
         Clique abaixo para disparar o envio agora, usando os dados da planilha:
       </p>
-      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <button id="send-now-1" class="btn-danger" style="flex: 1;">Enviar Lista 1</button>
-        <button id="send-now-2" class="btn-danger" style="flex: 1;">Enviar Lista 2</button>
-        <button id="send-now-3" class="btn-danger" style="flex: 1;">Enviar Lista 3</button>
-        <button id="send-now-4" class="btn-danger" style="flex: 1;">Enviar Lista 4</button>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <button id="send-now-1">Enviar Lista 1</button>
+        <button id="send-now-2">Enviar Lista 2</button>
+        <button id="send-now-3">Enviar Lista 3</button>
+        <button id="send-now-4">Enviar Lista 4</button>
       </div>
       <span id="send-status" class="status"></span>
     </div>
@@ -425,17 +407,7 @@
         const res = await fetch("/api/config");
         const data = await res.json();
 
-        if (data.time) {
-          document.getElementById("time-input").value = data.time;
-        }
-        if (data.time2) {
-          document.getElementById("time-input-2").value = data.time2;
-        }
 
-        if (typeof data.dailyEnabled === "boolean") {
-          document.getElementById("daily-enabled").checked =
-            data.dailyEnabled;
-        }
       } catch (e) {
         console.error("Erro ao carregar config:", e);
       }
@@ -475,47 +447,10 @@
       }
     }
 
-    // Salvar horário
-    document
-      .getElementById("time-save")
-      .addEventListener("click", async () => {
-        const time = document.getElementById("time-input").value;
-        const time2 = document.getElementById("time-input-2").value;
-        const statusEl = document.getElementById("time-status");
 
-        try {
-          const res = await fetch("/api/time", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ time, time2 }),
-          });
-
-          const data = await res.json();
-
-          if (res.ok) {
-            statusEl.textContent = `Salvo: ${data.time} / ${data.time2}`;
-            statusEl.style.color = "lightgreen";
-          } else {
-            statusEl.textContent = data.error;
-            statusEl.style.color = "salmon";
-          }
-        } catch (e) {
-          statusEl.textContent = "Erro ao salvar horário";
-          statusEl.style.color = "salmon";
-        }
-      });
 
     // Toggle envio diário
-    document
-      .getElementById("daily-enabled")
-      .addEventListener("change", async (ev) => {
-        const checked = ev.target.checked;
-        await fetch("/api/daily", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ enabled: checked }),
-        });
-      });
+
 
     // Envio manual
     // Envio manual (Genérico)
