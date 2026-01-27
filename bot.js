@@ -21,8 +21,8 @@ console.log("Iniciando bot WhatsApp + Google Sheets...");
 // CONFIGURAÇÕES
 // =========================
 
-const SPREADSHEET_ID = "1pm0xKftMIWeE4l88jLfC-vk3qk4YIf-s0rIU3xAjl-0";
-const SHEET_NAME = "Página1";
+const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
+const SHEET_NAME = process.env.GOOGLE_SHEET_TAB;
 
 const CONFIG_PATH = path.join(process.cwd(), "config.json");
 
@@ -74,10 +74,25 @@ let dailyMessageCount = 0;
 
 async function getGoogleSheetsClient() {
   console.log("Configurando cliente Google Sheets...");
-  const auth = new google.auth.GoogleAuth({
-    keyFile: "credentials.json",
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-  });
+  let auth;
+
+  if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
+    console.log("Variáveis de ambiente de credenciais detectadas.");
+    const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n");
+    auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_CLIENT_EMAIL,
+        private_key: privateKey,
+      },
+      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    });
+  } else {
+    console.log("Usando arquivo credentials.json local.");
+    auth = new google.auth.GoogleAuth({
+      keyFile: "credentials.json",
+      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    });
+  }
 
   const authClient = await auth.getClient();
   const sheets = google.sheets({ version: "v4", auth: authClient });
