@@ -1,15 +1,17 @@
 // bot.js
 let currentQR = null;
-let lastQR = null;
+let lastQR = null; // <-- garante que o QR nunca seja perdido
 
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import bodyParser from "body-parser";
 import cors from "cors";
+import schedule from "node-schedule";
 import qrcode from "qrcode-terminal";
 import { google } from "googleapis";
 import pkg from "whatsapp-web.js";
+import fs from "fs";
 
 const { Client, LocalAuth } = pkg;
 
@@ -19,17 +21,39 @@ console.log("Iniciando bot WhatsApp + Google Sheets...");
 // CONFIGURAÇÕES
 // =========================
 
-const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
-const SHEET_NAME = process.env.GOOGLE_SHEET_TAB;
+const SPREADSHEET_ID = "1pm0xKftMIWeE4l88jLfC-vk3qk4YIf-s0rIU3xAjl-0";
+const SHEET_NAME = "Página1";
 
-if (!SPREADSHEET_ID || !SHEET_NAME) {
-  throw new Error(
-    "❌ Variáveis de ambiente GOOGLE_SHEET_ID ou GOOGLE_SHEET_TAB não definidas"
-  );
-}
+const CONFIG_PATH = path.join(process.cwd(), "config.json");
 
 let messageDelayMs = 3000;
+
+// Carregar config
+try {
+  if (fs.existsSync(CONFIG_PATH)) {
+    const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
+    const json = JSON.parse(raw);
+    if (json.messageDelayMs) messageDelayMs = json.messageDelayMs;
+    console.log("✅ Configurações carregadas:", json);
+  }
+} catch (e) {
+  console.error("Erro ao carregar confirm.json:", e);
+}
+
+function saveConfig() {
+  try {
+    const data = {
+      messageDelayMs
+    };
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2));
+    console.log("💾 Configurações salvas.");
+  } catch (e) {
+    console.error("Erro ao salvar config:", e);
+  }
+}
+
 let isWhatsAppReady = false;
+let isSending = false; // Bloqueio de concorrência
 
 // Estatísticas
 let lastRunInfo = {
@@ -40,69 +64,90 @@ let lastRunInfo = {
 };
 
 let messageLog = [];
+let dailyMessageCount = 0;
+
+const BROWSER_EXECUTABLE_PATH =
+  "C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe";
 
 // =========================
 // GOOGLE SHEETS
 // =========================
 
 async function getGoogleSheetsClient() {
-  if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
-    throw new Error("❌ Variáveis de ambiente do Google não definidas!");
-  }
-
+  console.log("Configurando cliente Google Sheets...");
   const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-    },
+    keyFile: "credentials.json",
     scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   });
 
   const authClient = await auth.getClient();
-  return google.sheets({ version: "v4", auth: authClient });
+  const sheets = google.sheets({ version: "v4", auth: authClient });
+  return sheets;
 }
 
-async function getMessagesFromSheet() {
-  const sheets = await getGoogleSheetsClient();
-  const range = `${SHEET_NAME}!A:C`;
+// Lê a planilha
+async function getMessagesFromSheet(targetFlag) {
+  try {
+    const sheets = await getGoogleSheetsClient();
+    const range = `${SHEET_NAME}!A:C`;
 
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range,
-  });
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range,
+    });
 
-  const rows = response.data.values || [];
-  const messages = [];
+    const rows = response.data.values || [];
+    const messages = [];
 
-  for (const row of rows) {
-    const phone = row[0];
-    const sendFlag = row[1];
-    const text = row[2];
+    for (let row of rows) {
+      const phone = row[0];
+      const sendFlag = row[1];
+      const text = row[2];
 
-    if (!phone || String(sendFlag).trim() !== "1" || !text) continue;
-
-    const normalized = normalizePhone(phone);
-    if (normalized) {
-      messages.push({ phone: normalized, text: text.trim() });
+      if (!phone || typeof sendFlag === "undefined") continue;
+      if (String(sendFlag).trim() === targetFlag && text && text.trim() !== "") {
+        const normalizedPhone = normalizePhone(phone);
+        if (normalizedPhone) {
+          messages.push({ phone: normalizedPhone, text: text.trim() });
+        }
+      }
     }
+    return messages;
+  } catch (err) {
+    console.error("Erro ao ler planilha:", err);
+    throw err;
+  }
+}
+
+// =========================
+// NORMALIZAÇÃO DO TELEFONE
+// =========================
+
+function normalizePhone(phoneRaw) {
+  // 1. Número Internacional (Marcado com +)
+  if (String(phoneRaw).trim().startsWith("+")) {
+    const digits = String(phoneRaw).replace(/\D/g, "");
+    // Aceita se tiver entre 7 e 15 dígitos (padrão internacional variavel)
+    if (digits.length >= 7 && digits.length <= 15) {
+      return digits;
+    }
+    return null; // Inválido se muito curto
   }
 
-  return messages;
-}
+  // 2. Lógica Brasil (Legado / Padrão sem +)
+  let digits = String(phoneRaw).replace(/\D/g, "");
 
-// =========================
-// NORMALIZAÇÃO DE TELEFONE
-// =========================
-
-function normalizePhone(raw) {
-  let digits = String(raw).replace(/\D/g, "");
-
-  if (digits.startsWith("55") && digits.length >= 12 && digits.length <= 13)
+  if (digits.startsWith("55") && digits.length >= 12 && digits.length <= 13) {
     return digits;
+  }
 
-  if (digits.length === 10 || digits.length === 11) return "55" + digits;
+  if (digits.length === 11 || digits.length === 10) {
+    return "55" + digits;
+  }
 
-  if (digits.length >= 12 && digits.length <= 15) return digits;
+  if (digits.length >= 12 && digits.length <= 15) {
+    return digits;
+  }
 
   return null;
 }
@@ -112,54 +157,61 @@ function normalizePhone(raw) {
 // =========================
 
 function addToLog({ phone, status, info }) {
-  messageLog.push({
+  const entry = {
     timestamp: new Date().toISOString(),
     phone,
     status,
     info: info || "",
-  });
+  };
 
-  if (messageLog.length > 500) messageLog.shift();
+  messageLog.push(entry);
+  if (messageLog.length > 100) messageLog.shift(); // Otimizado: max 100 logs
+  if (status === "sent") dailyMessageCount++;
 }
+
+schedule.scheduleJob("1 0 * * *", () => {
+  dailyMessageCount = 0;
+});
 
 // =========================
 // WHATSAPP CLIENT
 // =========================
 
+console.log("Inicializando cliente WhatsApp...");
+
 const client = new Client({
-  authStrategy: new LocalAuth({
-    clientId: "bot-planilha",
-    dataPath: "./.wwebjs_auth",
-  }),
+  authStrategy: new LocalAuth({ clientId: "bot-planilha" }),
   puppeteer: {
     headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-    ],
+    executablePath: BROWSER_EXECUTABLE_PATH,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--no-first-run"],
   },
 });
 
 client.on("qr", (qr) => {
+  console.log("QR CODE RECEBIDO");
   currentQR = qr;
-  lastQR = qr;
+  lastQR = qr; // <-- salva para interface web
   qrcode.generate(qr, { small: true });
 });
 
 client.on("ready", () => {
-  console.log("✅ WhatsApp conectado");
+  console.log("✅ Cliente WhatsApp pronto!");
   isWhatsAppReady = true;
+  currentQR = null; // Libera memória
+});
+
+client.on("authenticated", () => {
+  console.log("✅ Autenticado no WhatsApp.");
 });
 
 client.on("auth_failure", () => {
-  console.log("❌ Falha de autenticação");
+  console.log("❌ Falha de autenticação.");
   isWhatsAppReady = false;
 });
 
 client.on("disconnected", () => {
-  console.log("⚠️ Desconectado, reiniciando...");
+  console.log("⚠️ Desconectado. Reiniciando...");
   isWhatsAppReady = false;
   client.initialize();
 });
@@ -167,77 +219,109 @@ client.on("disconnected", () => {
 client.initialize();
 
 // =========================
-// ENVIO DE MENSAGENS
+// AGENDAMENTO DIÁRIO
 // =========================
 
+
+
+
+// =========================
+// ENVIO PLANILHA
+// =========================
+
+// Função de atraso entre mensagens
 function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function sendAllMessages() {
+async function sendAllMessages(targetFlag = "1") {
   if (!isWhatsAppReady) {
-    console.warn("WhatsApp não está pronto");
+    console.warn("⚠️ WhatsApp não está pronto, envio cancelado.");
     return;
   }
 
-  const messages = await getMessagesFromSheet();
-
-  let sent = 0;
-  let noWhatsapp = 0;
-  let errors = 0;
-
-  for (let i = 0; i < messages.length; i++) {
-    const { phone, text } = messages[i];
-
-    try {
-      const wid = await client.getNumberId(phone);
-
-      if (!wid) {
-        noWhatsapp++;
-        addToLog({ phone, status: "no-whatsapp", info: "Sem WhatsApp" });
-      } else {
-        await client.sendMessage(wid._serialized, text);
-        sent++;
-        addToLog({ phone, status: "sent", info: "Mensagem enviada" });
-      }
-    } catch (err) {
-      errors++;
-      addToLog({
-        phone,
-        status: "error",
-        info: err?.message || "Erro desconhecido",
-      });
-    }
-
-    if (i < messages.length - 1) {
-      await delay(messageDelayMs);
-    }
+  if (isSending) {
+    console.warn("⚠️ Já existe um envio em andamento. Aguarde terminar.");
+    return;
   }
 
-  lastRunInfo = {
-    lastRunAt: new Date().toISOString(),
-    totalSent: sent,
-    totalNoWhatsapp: noWhatsapp,
-    totalErrors: errors,
-  };
+  isSending = true;
 
-  console.log("Envio concluído:", lastRunInfo);
+  try {
+    const messages = await getMessagesFromSheet(targetFlag);
+    console.log(`Iniciando envio (Flag "${targetFlag}") de ${messages.length} mensagens...`);
+
+    let sent = 0;
+    let noWhatsapp = 0;
+    let errors = 0;
+
+    for (let i = 0; i < messages.length; i++) {
+      const { phone, text } = messages[i];
+
+      try {
+        const wid = await client.getNumberId(phone);
+
+        if (!wid) {
+          noWhatsapp++;
+          addToLog({ phone, status: "no-whatsapp", info: `[Lista ${targetFlag}] Sem WhatsApp` });
+        } else {
+          await client.sendMessage(wid._serialized, text);
+          sent++;
+          addToLog({ phone, status: "sent", info: `[Lista ${targetFlag}] Mensagem enviada` });
+        }
+      } catch (err) {
+        errors++;
+        addToLog({
+          phone,
+          status: "error",
+          info: `[Lista ${targetFlag}] ${err?.message || "Erro desconhecido"}`,
+        });
+      }
+
+      if (i < messages.length - 1) {
+        await delay(messageDelayMs);
+      }
+    }
+
+    lastRunInfo = {
+      lastRunAt: new Date().toISOString(),
+      totalSent: sent,
+      totalNoWhatsapp: noWhatsapp,
+      totalErrors: errors,
+    };
+
+    console.log("Envio concluído:", lastRunInfo);
+  } catch (err) {
+    console.error("Erro geral no envio:", err);
+  } finally {
+    isSending = false;
+  }
 }
 
-async function sendTestToSingleNumber(phone, text) {
-  if (!isWhatsAppReady) throw new Error("WhatsApp não conectado");
 
-  const normalized = normalizePhone(phone);
-  if (!normalized) throw new Error("Telefone inválido");
+// =========================
+// ENVIO TESTE
+// =========================
+
+async function sendTestToSingleNumber(rawPhone, text) {
+  if (!isWhatsAppReady) throw new Error("WhatsApp não está conectado.");
+
+  const normalized = normalizePhone(rawPhone);
+  if (!normalized) throw new Error("Telefone inválido.");
 
   const wid = await client.getNumberId(normalized);
-  if (!wid) throw new Error("Número não possui WhatsApp");
+
+  if (!wid) {
+    addToLog({ phone: normalized, status: "no-whatsapp", info: "Sem WhatsApp" });
+    throw new Error("Número não possui WhatsApp.");
+  }
 
   await client.sendMessage(wid._serialized, text);
   addToLog({ phone: normalized, status: "sent", info: "Teste enviado" });
 
   return { to: wid._serialized };
 }
+
 
 // =========================
 // EXPRESS / API
@@ -251,35 +335,57 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, "public")));
 
+
+// 🔥 ROTA QUE ENVIA O QR CODE PARA A INTERFACE WEB
 app.get("/api/qr", (req, res) => {
   res.json({ qr: currentQR || lastQR || null });
 });
 
+
+// Status geral
 app.get("/api/status", (req, res) => {
   res.json({
     whatsappReady: isWhatsAppReady,
     lastRun: lastRunInfo,
+    todayCount: dailyMessageCount,
   });
 });
 
-app.get("/api/log", (req, res) => {
-  res.json({ log: messageLog });
+// Config atual
+app.get("/api/config", (req, res) => {
+  res.json({
+    delayMs: messageDelayMs,
+  });
 });
 
+// Log
+app.get("/api/log", (req, res) => {
+  res.json({
+    log: messageLog,
+    todayCount: dailyMessageCount,
+  });
+});
+
+// Atualiza horários
+
+
+// Envio imediato
 app.post("/api/send-now", async (req, res) => {
   try {
-    await sendAllMessages();
-    res.json({ ok: true });
-  } catch {
-    res.status(500).json({ error: "Erro no envio manual" });
+    const flag = req.body.flag || "1"; // Default to "1" if not provided
+    await sendAllMessages(flag);
+    res.json({ ok: true, flag });
+  } catch (e) {
+    res.status(500).json({ error: "Erro no envio manual." });
   }
 });
 
+// Envio de teste
 app.post("/api/send-test", async (req, res) => {
   const { phone, text } = req.body;
 
   if (!phone || !text) {
-    return res.status(400).json({ error: "Informe telefone e texto" });
+    return res.status(400).json({ error: "Informe telefone e texto." });
   }
 
   try {
@@ -290,12 +396,13 @@ app.post("/api/send-test", async (req, res) => {
   }
 });
 
+
 // =========================
 // SERVIDOR
 // =========================
 
-const PORT = process.env.PORT || 5002;
+const PORT = process.env.PORT || 3112;
 
 app.listen(PORT, () => {
-  console.log(`🌐 Rodando em http://localhost:${PORT}`);
+  console.log(`🌐 Interface web disponível em: http://localhost:${PORT}`);
 });

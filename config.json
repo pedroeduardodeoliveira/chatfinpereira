@@ -1,0 +1,6 @@
+{
+    "dailyTime": "11:30",
+    "dailyTime2": "10:00",
+    "dailyEnabled": true,
+    "messageDelayMs": 3000
+}
