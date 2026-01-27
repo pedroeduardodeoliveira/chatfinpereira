@@ -66,8 +66,7 @@ let lastRunInfo = {
 let messageLog = [];
 let dailyMessageCount = 0;
 
-const BROWSER_EXECUTABLE_PATH =
-  "C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe";
+
 
 // =========================
 // GOOGLE SHEETS
@@ -183,7 +182,6 @@ const client = new Client({
   authStrategy: new LocalAuth({ clientId: "bot-planilha" }),
   puppeteer: {
     headless: true,
-    executablePath: BROWSER_EXECUTABLE_PATH,
     args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--no-first-run"],
   },
 });
